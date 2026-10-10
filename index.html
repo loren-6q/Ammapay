@@ -37,7 +37,7 @@
     <div id="root" class="h-screen w-full flex flex-col overflow-hidden"></div>
 
     <script type="text/babel" data-type="module">
-        import React, { useState, useEffect, useMemo } from 'react';
+        import React, { useState, useEffect, useMemo, useRef } from 'react';
         import { createRoot } from 'react-dom/client';
         import { 
             LogOut, Plus, Edit, Trash2, X, DollarSign, 
@@ -96,6 +96,24 @@
         const formatTime = (iso) => iso ? new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '-';
 
         function Modal({ title, children, onClose }) {
+            const modalContentRef = useRef(null);
+
+            useEffect(() => {
+                // Automatically find and focus the first available input field
+                const timer = setTimeout(() => {
+                    if (modalContentRef.current) {
+                        const firstInput = modalContentRef.current.querySelector('input:not([type="hidden"]):not([disabled]), textarea:not([disabled]), select:not([disabled])');
+                        if (firstInput) {
+                            firstInput.focus();
+                            if (typeof firstInput.select === 'function' && firstInput.type !== 'datetime-local' && firstInput.type !== 'date') {
+                                firstInput.select();
+                            }
+                        }
+                    }
+                }, 50);
+                return () => clearTimeout(timer);
+            }, []);
+
             return (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
                     <div className="bg-white w-full max-w-xl rounded-2xl shadow-xl overflow-hidden flex flex-col max-h-[88vh]">
@@ -105,7 +123,7 @@
                                 <X size={20}/>
                             </button>
                         </div>
-                        <div className="p-5 overflow-y-auto">
+                        <div ref={modalContentRef} className="p-5 overflow-y-auto">
                             {children}
                         </div>
                     </div>
@@ -345,7 +363,7 @@
                                 </div>
                                 <div>
                                     <label className="block text-xs font-bold uppercase text-slate-600 tracking-wide mb-1">Time Clocked In</label>
-                                    <input required name="clockIn" type="datetime-local" defaultValue={toLocalDatetimeInput(editingShift.clockIn)} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-base font-bold outline-none focus:border-blue-600" />
+                                    <input autoFocus required name="clockIn" type="datetime-local" defaultValue={toLocalDatetimeInput(editingShift.clockIn)} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-base font-bold outline-none focus:border-blue-600" />
                                 </div>
                                 <div>
                                     <label className="block text-xs font-bold uppercase text-slate-600 tracking-wide mb-1">Time Clocked Out</label>
@@ -674,7 +692,7 @@
                             <form onSubmit={handleSaveStaff} className="space-y-4">
                                 <div>
                                     <label className="block text-xs font-bold uppercase text-slate-600 tracking-wide mb-1">Caretaker Name</label>
-                                    <input required name="name" type="text" defaultValue={editingStaff ? editingStaff.name : ''} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-base font-bold outline-none focus:border-indigo-500" placeholder="e.g. Maria" />
+                                    <input autoFocus required name="name" type="text" defaultValue={editingStaff ? editingStaff.name : ''} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-base font-bold outline-none focus:border-indigo-500" placeholder="e.g. Maria" />
                                 </div>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <div>
