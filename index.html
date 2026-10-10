@@ -21,8 +21,14 @@
     </script>
     
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap');
-        body { font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; user-select: none; background-color: #f8fafc; }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+        body { 
+            font-family: 'Inter', sans-serif; 
+            -webkit-tap-highlight-color: transparent; 
+            user-select: none; 
+            background-color: #f1f5f9; 
+            font-size: 16px;
+        }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         
@@ -33,7 +39,7 @@
         }
     </style>
 </head>
-<body class="bg-slate-100 text-slate-800">
+<body class="bg-slate-100 text-slate-900">
     <div id="root" class="h-screen w-full flex flex-col overflow-hidden"></div>
 
     <script type="text/babel" data-type="module">
@@ -41,7 +47,9 @@
         import { createRoot } from 'react-dom/client';
         import { 
             LogOut, Plus, Edit, Trash2, X, DollarSign, 
-            Users, FileUp, History, Play, Square, CheckCircle, AlertCircle
+            Users, FileUp, History, Play, Square, CheckCircle, AlertCircle,
+            ChevronDown, ChevronUp, RotateCcw, Clock, ArrowUpDown, Filter,
+            FileText, Calendar
         } from 'lucide-react';
         
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
@@ -66,7 +74,7 @@
         const db = getFirestore(app);
         const auth = getAuth(app);
 
-        // Fixed, permanent App ID so data is never lost across reloads or code updates
+        // Fixed, permanent App ID so data is preserved across reloads and devices
         const APP_ID = 'ammapay_caretakers';
         const STAFF_COLLECTION = 'ammastaff';
         const SHIFTS_COLLECTION = 'ammashifts';
@@ -79,17 +87,25 @@
         };
 
         const calculatePay = (startIso, endIso, hourlyRate) => {
-            if (!startIso || !endIso) return { mins: 0, formattedTime: '0h 0m', payAmount: 0 };
+            if (!startIso || !endIso) return { mins: 0, hoursDec: 0, formattedTime: '0h 0m', payAmount: 0 };
             const diffMs = new Date(endIso) - new Date(startIso);
             const totalMins = Math.max(0, Math.floor(diffMs / 60000));
             const hours = Math.floor(totalMins / 60);
             const mins = totalMins % 60;
-            const payAmount = (totalMins / 60) * (hourlyRate || 45);
+            const hoursDec = totalMins / 60;
+            const payAmount = hoursDec * (hourlyRate || 45);
             return {
                 mins: totalMins,
+                hoursDec: hoursDec,
                 formattedTime: `${hours}h ${mins}m`,
                 payAmount: payAmount
             };
+        };
+
+        const formatMinutesToHours = (totalMins) => {
+            const h = Math.floor(totalMins / 60);
+            const m = Math.round(totalMins % 60);
+            return `${h}h ${m}m`;
         };
 
         const formatDate = (iso) => iso ? new Date(iso).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) : '-';
@@ -99,7 +115,6 @@
             const modalContentRef = useRef(null);
 
             useEffect(() => {
-                // Automatically find and focus the first available input field
                 const timer = setTimeout(() => {
                     if (modalContentRef.current) {
                         const firstInput = modalContentRef.current.querySelector('input:not([type="hidden"]):not([disabled]), textarea:not([disabled]), select:not([disabled])');
@@ -115,15 +130,15 @@
             }, []);
 
             return (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-                    <div className="bg-white w-full max-w-xl rounded-2xl shadow-xl overflow-hidden flex flex-col max-h-[88vh]">
-                        <div className="px-5 py-3.5 bg-slate-100 border-b border-slate-200 flex justify-between items-center shrink-0">
-                            <h2 className="text-xl font-extrabold uppercase text-slate-800">{title}</h2>
-                            <button onClick={onClose} className="p-2 text-slate-500 hover:text-slate-800 bg-slate-200 hover:bg-slate-300 rounded-lg transition-colors">
-                                <X size={20}/>
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/65 backdrop-blur-xs">
+                    <div className="bg-white w-full max-w-xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+                        <div className="px-6 py-4 bg-slate-100 border-b border-slate-200 flex justify-between items-center shrink-0">
+                            <h2 className="text-xl sm:text-2xl font-black uppercase text-slate-800 tracking-wide">{title}</h2>
+                            <button onClick={onClose} className="p-2 text-slate-500 hover:text-slate-800 bg-slate-200 hover:bg-slate-300 rounded-xl transition-colors">
+                                <X size={24}/>
                             </button>
                         </div>
-                        <div ref={modalContentRef} className="p-5 overflow-y-auto">
+                        <div ref={modalContentRef} className="p-6 overflow-y-auto">
                             {children}
                         </div>
                     </div>
@@ -131,19 +146,19 @@
             );
         }
 
-        function ConfirmModal({ open, title, message, confirmText = "Confirm", onConfirm, onCancel }) {
+        function ConfirmModal({ open, title, message, confirmText = "Confirm", isDanger = false, onConfirm, onCancel }) {
             if (!open) return null;
             return (
-                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/65 backdrop-blur-xs">
-                    <div className="bg-white w-full max-w-sm rounded-2xl p-5 shadow-2xl space-y-4">
-                        <div className="flex items-center gap-2.5 text-amber-600">
-                            <AlertCircle size={28} />
-                            <h3 className="text-xl font-extrabold uppercase text-slate-800">{title}</h3>
+                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-xs">
+                    <div className="bg-white w-full max-w-md rounded-2xl p-6 shadow-2xl space-y-4">
+                        <div className={`flex items-center gap-3 ${isDanger ? 'text-red-600' : 'text-amber-600'}`}>
+                            <AlertCircle size={32} />
+                            <h3 className="text-2xl font-black uppercase text-slate-900">{title}</h3>
                         </div>
-                        <p className="text-slate-600 font-semibold text-base leading-snug">{message}</p>
-                        <div className="flex gap-3 pt-2">
-                            <button onClick={onCancel} className="flex-1 py-3 bg-slate-200 hover:bg-slate-300 font-extrabold text-base text-slate-700 rounded-xl uppercase">Cancel</button>
-                            <button onClick={onConfirm} className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 font-extrabold text-base text-white rounded-xl uppercase shadow-md">{confirmText}</button>
+                        <p className="text-slate-700 font-bold text-lg leading-relaxed">{message}</p>
+                        <div className="flex gap-3 pt-3">
+                            <button onClick={onCancel} className="flex-1 py-3.5 bg-slate-200 hover:bg-slate-300 font-black text-lg text-slate-700 rounded-xl uppercase">Cancel</button>
+                            <button onClick={onConfirm} className={`flex-1 py-3.5 ${isDanger ? 'bg-red-600 hover:bg-red-700' : 'bg-emerald-600 hover:bg-emerald-700'} font-black text-lg text-white rounded-xl uppercase shadow-md`}>{confirmText}</button>
                         </div>
                     </div>
                 </div>
@@ -183,38 +198,38 @@
             };
             
             return (
-                <div className="flex flex-col items-center justify-center w-full max-w-xs mx-auto space-y-4 my-auto px-4">
-                    <div className="text-center space-y-0.5">
-                        <h1 className="text-2xl font-black text-slate-800 uppercase tracking-wide">AmmaPay Timeclock</h1>
-                        <p className="text-slate-500 font-bold text-sm uppercase tracking-wide">Enter 4-Digit PIN</p>
+                <div className="flex flex-col items-center justify-center w-full max-w-sm mx-auto space-y-6 my-auto px-5">
+                    <div className="text-center space-y-1">
+                        <h1 className="text-3xl font-black text-slate-900 uppercase tracking-wide">AmmaPay Timeclock</h1>
+                        <p className="text-slate-600 font-extrabold text-base uppercase tracking-wider">Enter 4-Digit PIN</p>
                         {errorMessage && (
-                            <div className="mt-2 py-1 px-3 bg-red-100 border border-red-300 text-red-700 font-bold rounded-lg text-sm">
+                            <div className="mt-2 py-2 px-4 bg-red-100 border-2 border-red-300 text-red-700 font-black rounded-xl text-base">
                                 {errorMessage}
                             </div>
                         )}
                     </div>
 
-                    <div className="flex gap-3 my-1">
+                    <div className="flex gap-4 my-2">
                         {[0,1,2,3].map(i => (
-                            <div key={i} className={`w-4 h-4 rounded-full border-2 transition-all ${i < pin.length ? 'bg-blue-600 border-blue-600' : 'border-slate-300 bg-slate-200'}`} />
+                            <div key={i} className={`w-5 h-5 rounded-full border-2 transition-all ${i < pin.length ? 'bg-blue-600 border-blue-600 scale-110' : 'border-slate-300 bg-slate-200'}`} />
                         ))}
                     </div>
 
-                    <div className="grid grid-cols-3 gap-2.5 w-full">
+                    <div className="grid grid-cols-3 gap-3 w-full">
                         {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => (
-                            <button key={num} onClick={() => handleTap(num.toString())} className="h-14 bg-white border border-slate-300 rounded-xl text-2xl font-black text-slate-800 hover:bg-slate-50 active:bg-slate-200 transition-colors flex items-center justify-center shadow-xs">
+                            <button key={num} onClick={() => handleTap(num.toString())} className="h-16 bg-white border-2 border-slate-300 rounded-2xl text-3xl font-black text-slate-800 hover:bg-slate-50 active:bg-slate-200 transition-colors flex items-center justify-center shadow-sm">
                                 {num}
                             </button>
                         ))}
                         <div />
-                        <button onClick={() => handleTap("0")} className="h-14 bg-white border border-slate-300 rounded-xl text-2xl font-black text-slate-800 hover:bg-slate-50 active:bg-slate-200 transition-colors flex items-center justify-center shadow-xs">
+                        <button onClick={() => handleTap("0")} className="h-16 bg-white border-2 border-slate-300 rounded-2xl text-3xl font-black text-slate-800 hover:bg-slate-50 active:bg-slate-200 transition-colors flex items-center justify-center shadow-sm">
                             0
                         </button>
-                        <button onClick={() => setPin(pin.slice(0, -1))} className="h-14 bg-slate-200 border border-slate-300 rounded-xl text-slate-600 hover:bg-slate-300 active:bg-slate-400 transition-colors flex items-center justify-center shadow-inner">
-                            <X size={24} />
+                        <button onClick={() => setPin(pin.slice(0, -1))} className="h-16 bg-slate-200 border-2 border-slate-300 rounded-2xl text-slate-700 hover:bg-slate-300 active:bg-slate-400 transition-colors flex items-center justify-center shadow-inner">
+                            <X size={28} />
                         </button>
                     </div>
-                    <p className="text-slate-400 font-semibold text-xs text-center">Use screen pad or type on keyboard</p>
+                    <p className="text-slate-500 font-bold text-sm text-center">Use on-screen buttons or type with your keyboard</p>
                 </div>
             );
         }
@@ -242,6 +257,7 @@
                     hourlyRateAtTime: user.hourlyRate || 45,
                     clockIn: new Date().toISOString(),
                     clockOut: null,
+                    notes: '',
                     status: 'unpaid'
                 });
             };
@@ -259,6 +275,7 @@
                 const fd = new FormData(e.target);
                 const cin = fd.get('clockIn');
                 const cout = fd.get('clockOut');
+                const notes = fd.get('notes')?.toString().trim() || '';
                 
                 if (cin) {
                     const startIso = new Date(cin).toISOString();
@@ -271,46 +288,48 @@
 
                     await updateDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', SHIFTS_COLLECTION, editingShift.id), {
                         clockIn: startIso,
-                        clockOut: endIso
+                        clockOut: endIso,
+                        notes: notes
                     });
                     setEditingShift(null);
                 }
             };
 
             return (
-                <div className="flex flex-col h-full bg-slate-50">
-                    <header className="bg-white px-5 py-3 border-b border-slate-200 flex justify-between items-center shadow-xs shrink-0">
+                <div className="flex flex-col h-full bg-slate-100">
+                    <header className="bg-white px-6 py-4 border-b border-slate-300 flex justify-between items-center shadow-xs shrink-0">
                         <div>
-                            <h1 className="text-xl font-extrabold text-slate-800">{user.name}</h1>
-                            <p className="text-slate-500 font-bold text-xs uppercase tracking-wide">Caretaker Mode (${user.hourlyRate || 45}/hr)</p>
+                            <h1 className="text-2xl font-black text-slate-900">{user.name}</h1>
+                            <p className="text-slate-600 font-extrabold text-sm uppercase tracking-wide">Caretaker Portal (${user.hourlyRate || 45}/hr)</p>
                         </div>
-                        <button onClick={onLogout} className="flex items-center gap-1.5 px-3 py-2 bg-slate-200 hover:bg-slate-300 rounded-lg font-bold text-sm text-slate-700 transition-colors">
-                            <LogOut size={16} /> Log Out
+                        <button onClick={onLogout} className="flex items-center gap-2 px-4 py-2.5 bg-slate-200 hover:bg-slate-300 rounded-xl font-black text-base text-slate-800 transition-colors">
+                            <LogOut size={18} /> Log Out
                         </button>
                     </header>
 
-                    <div className="flex bg-slate-100 border-b border-slate-200 shrink-0">
-                        <button onClick={() => setView('clock')} className={`flex-1 py-3 text-base font-extrabold uppercase tracking-wide border-b-2 transition-colors ${view === 'clock' ? 'border-blue-600 text-blue-600 bg-white' : 'border-transparent text-slate-500 hover:bg-slate-200'}`}>Clock In / Out</button>
-                        <button onClick={() => setView('history')} className={`flex-1 py-3 text-base font-extrabold uppercase tracking-wide border-b-2 transition-colors ${view === 'history' ? 'border-blue-600 text-blue-600 bg-white' : 'border-transparent text-slate-500 hover:bg-slate-200'}`}>My Recent Shifts</button>
+                    <div className="flex bg-slate-200 border-b border-slate-300 shrink-0">
+                        <button onClick={() => setView('clock')} className={`flex-1 py-4 text-lg font-black uppercase tracking-wide border-b-4 transition-colors ${view === 'clock' ? 'border-blue-600 text-blue-600 bg-white' : 'border-transparent text-slate-600 hover:bg-slate-100'}`}>Clock In / Out</button>
+                        <button onClick={() => setView('history')} className={`flex-1 py-4 text-lg font-black uppercase tracking-wide border-b-4 transition-colors ${view === 'history' ? 'border-blue-600 text-blue-600 bg-white' : 'border-transparent text-slate-600 hover:bg-slate-100'}`}>My Recent Shifts (10 Days)</button>
                     </div>
 
-                    <div className="flex-1 overflow-y-auto p-5 flex flex-col items-center">
+                    <div className="flex-1 overflow-y-auto p-6 flex flex-col items-center">
                         {view === 'clock' && (
-                            <div className="w-full max-w-sm mt-4">
+                            <div className="w-full max-w-md mt-6">
                                 {!activeShift ? (
-                                    <button onClick={handleClockIn} className="w-full py-12 bg-emerald-500 hover:bg-emerald-600 text-white rounded-2xl shadow-lg active:scale-98 transition-all flex flex-col items-center justify-center gap-3 border-2 border-emerald-400">
-                                        <Play size={44} className="fill-current ml-1" />
-                                        <span className="text-2xl font-black tracking-wide uppercase">Clock In</span>
+                                    <button onClick={handleClockIn} className="w-full py-14 bg-emerald-500 hover:bg-emerald-600 text-white rounded-3xl shadow-xl active:scale-98 transition-all flex flex-col items-center justify-center gap-3 border-4 border-emerald-400">
+                                        <Play size={56} className="fill-current ml-2" />
+                                        <span className="text-3xl font-black tracking-wide uppercase">Clock In</span>
                                     </button>
                                 ) : (
-                                    <div className="w-full space-y-4">
-                                        <div className="text-center bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
-                                            <p className="text-slate-500 font-bold uppercase tracking-wide text-xs mb-1">Clocked In At</p>
-                                            <p className="text-2xl font-black text-slate-800">{formatTime(activeShift.clockIn)}</p>
+                                    <div className="w-full space-y-5">
+                                        <div className="text-center bg-white p-6 rounded-2xl border-2 border-slate-200 shadow-sm">
+                                            <p className="text-slate-500 font-extrabold uppercase tracking-wide text-sm mb-1">Currently Clocked In At</p>
+                                            <p className="text-3xl font-black text-slate-900">{formatTime(activeShift.clockIn)}</p>
+                                            <p className="text-slate-500 font-bold text-sm mt-1">{formatDate(activeShift.clockIn)}</p>
                                         </div>
-                                        <button onClick={handleClockOut} className="w-full py-12 bg-red-500 hover:bg-red-600 text-white rounded-2xl shadow-lg active:scale-98 transition-all flex flex-col items-center justify-center gap-3 border-2 border-red-400">
-                                            <Square size={44} className="fill-current" />
-                                            <span className="text-2xl font-black tracking-wide uppercase">Clock Out</span>
+                                        <button onClick={handleClockOut} className="w-full py-14 bg-red-500 hover:bg-red-600 text-white rounded-3xl shadow-xl active:scale-98 transition-all flex flex-col items-center justify-center gap-3 border-4 border-red-400">
+                                            <Square size={56} className="fill-current" />
+                                            <span className="text-3xl font-black tracking-wide uppercase">Clock Out</span>
                                         </button>
                                     </div>
                                 )}
@@ -318,33 +337,41 @@
                         )}
 
                         {view === 'history' && (
-                            <div className="w-full max-w-2xl space-y-3">
-                                <h2 className="text-base font-extrabold text-slate-600 uppercase tracking-wide">Last 10 Days</h2>
+                            <div className="w-full max-w-3xl space-y-4">
+                                <h2 className="text-lg font-black text-slate-700 uppercase tracking-wide">Last 10 Days of Shifts</h2>
                                 {myHistory.map(shift => {
                                     const { formattedTime } = calculatePay(shift.clockIn, shift.clockOut || new Date().toISOString(), shift.hourlyRateAtTime);
                                     return (
-                                        <div key={shift.id} className="bg-white rounded-xl border border-slate-200 p-4 flex flex-col sm:flex-row justify-between sm:items-center shadow-xs gap-3">
-                                            <div>
-                                                <div className="text-base font-bold text-slate-800">{formatDate(shift.clockIn)}</div>
-                                                <div className="text-sm text-slate-500 font-medium">
-                                                    {formatTime(shift.clockIn)} — {shift.clockOut ? formatTime(shift.clockOut) : 'Working Now'}
-                                                </div>
-                                            </div>
-                                            <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto">
-                                                <div className="text-left sm:text-right bg-slate-100 px-3 py-1.5 rounded-lg">
-                                                    <div className="text-base font-black text-slate-700">{shift.clockOut ? formattedTime : 'Active'}</div>
-                                                    <div className={`text-xs font-bold uppercase tracking-wider ${!shift.clockOut ? 'text-emerald-600' : shift.status === 'paid' ? 'text-blue-600' : 'text-slate-500'}`}>
-                                                        {!shift.clockOut ? 'Working' : shift.status}
+                                        <div key={shift.id} className="bg-white rounded-2xl border border-slate-300 p-5 shadow-sm space-y-3">
+                                            <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3">
+                                                <div>
+                                                    <div className="text-lg font-black text-slate-900">{formatDate(shift.clockIn)}</div>
+                                                    <div className="text-base text-slate-600 font-bold">
+                                                        {formatTime(shift.clockIn)} — {shift.clockOut ? formatTime(shift.clockOut) : 'Working Now'}
                                                     </div>
                                                 </div>
-                                                <button onClick={() => { setValidationError(''); setEditingShift(shift); }} className="px-3 py-2 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded-lg font-bold text-sm flex items-center gap-1 transition-colors">
-                                                    <Edit size={15}/> Fix Time
-                                                </button>
+                                                <div className="flex items-center gap-3">
+                                                    <div className="text-right bg-slate-100 px-4 py-2 rounded-xl">
+                                                        <div className="text-lg font-black text-slate-800">{shift.clockOut ? formattedTime : 'Active'}</div>
+                                                        <div className={`text-xs font-black uppercase tracking-wider ${!shift.clockOut ? 'text-emerald-600' : shift.status === 'paid' ? 'text-blue-600' : 'text-amber-600'}`}>
+                                                            {!shift.clockOut ? 'Working' : shift.status}
+                                                        </div>
+                                                    </div>
+                                                    <button onClick={() => { setValidationError(''); setEditingShift(shift); }} className="px-4 py-2.5 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded-xl font-black text-sm flex items-center gap-1.5 transition-colors">
+                                                        <Edit size={16}/> Fix Time
+                                                    </button>
+                                                </div>
                                             </div>
+                                            {shift.notes && (
+                                                <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200 text-sm font-semibold text-slate-700 flex items-start gap-2">
+                                                    <FileText size={16} className="text-slate-400 shrink-0 mt-0.5" />
+                                                    <span>{shift.notes}</span>
+                                                </div>
+                                            )}
                                         </div>
                                     );
                                 })}
-                                {myHistory.length === 0 && <div className="p-6 text-center font-bold text-slate-400 text-base border-2 border-dashed border-slate-200 rounded-xl">No shifts in the last 10 days.</div>}
+                                {myHistory.length === 0 && <div className="p-8 text-center font-bold text-slate-400 text-lg border-2 border-dashed border-slate-300 rounded-2xl">No shifts in the last 10 days.</div>}
                             </div>
                         )}
                     </div>
@@ -353,26 +380,30 @@
                         <Modal title="Fix Shift Times" onClose={() => setEditingShift(null)}>
                             <form onSubmit={handleSaveEdit} className="space-y-4">
                                 {validationError && (
-                                    <div className="p-2.5 bg-red-100 border border-red-300 text-red-700 font-bold rounded-lg text-sm">
+                                    <div className="p-3 bg-red-100 border-2 border-red-300 text-red-700 font-black rounded-xl text-base">
                                         {validationError}
                                     </div>
                                 )}
-                                <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
-                                    <p className="text-sm font-bold text-blue-900">Forgot to click clock in or clock out?</p>
-                                    <p className="text-xs text-blue-700 mt-0.5">Adjust your start and end times below to the exact times you worked.</p>
+                                <div className="bg-blue-50 p-3.5 rounded-xl border border-blue-200">
+                                    <p className="text-base font-bold text-blue-900">Forgot to clock in or out?</p>
+                                    <p className="text-sm text-blue-700 mt-0.5">Adjust your start and end times below to the exact times you worked.</p>
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-bold uppercase text-slate-600 tracking-wide mb-1">Time Clocked In</label>
-                                    <input autoFocus required name="clockIn" type="datetime-local" defaultValue={toLocalDatetimeInput(editingShift.clockIn)} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-base font-bold outline-none focus:border-blue-600" />
+                                    <label className="block text-sm font-black uppercase text-slate-700 tracking-wide mb-1">Time Clocked In</label>
+                                    <input autoFocus required name="clockIn" type="datetime-local" defaultValue={toLocalDatetimeInput(editingShift.clockIn)} className="w-full bg-slate-50 border-2 border-slate-300 rounded-xl px-4 py-2.5 text-lg font-bold outline-none focus:border-blue-600" />
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-bold uppercase text-slate-600 tracking-wide mb-1">Time Clocked Out</label>
-                                    <input name="clockOut" type="datetime-local" defaultValue={toLocalDatetimeInput(editingShift.clockOut)} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-base font-bold outline-none focus:border-blue-600" />
-                                    <p className="text-slate-500 text-xs mt-1">Leave empty if you are still working right now.</p>
+                                    <label className="block text-sm font-black uppercase text-slate-700 tracking-wide mb-1">Time Clocked Out</label>
+                                    <input name="clockOut" type="datetime-local" defaultValue={toLocalDatetimeInput(editingShift.clockOut)} className="w-full bg-slate-50 border-2 border-slate-300 rounded-xl px-4 py-2.5 text-lg font-bold outline-none focus:border-blue-600" />
+                                    <p className="text-slate-500 font-medium text-xs mt-1">Leave empty if you are still working right now.</p>
                                 </div>
-                                <div className="pt-2 flex gap-2">
-                                    <button type="button" onClick={() => setEditingShift(null)} className="flex-1 py-2.5 bg-slate-200 hover:bg-slate-300 rounded-lg font-bold text-base text-slate-700 uppercase">Cancel</button>
-                                    <button type="submit" className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-base uppercase shadow-sm">Save Fix</button>
+                                <div>
+                                    <label className="block text-sm font-black uppercase text-slate-700 tracking-wide mb-1">Notes (Optional)</label>
+                                    <input name="notes" type="text" defaultValue={editingShift.notes || ''} placeholder="e.g. Worked half day, Left early for doctor" className="w-full bg-slate-50 border-2 border-slate-300 rounded-xl px-4 py-2.5 text-base font-bold outline-none focus:border-blue-600" />
+                                </div>
+                                <div className="pt-3 flex gap-3">
+                                    <button type="button" onClick={() => setEditingShift(null)} className="flex-1 py-3 bg-slate-200 hover:bg-slate-300 rounded-xl font-black text-lg text-slate-700 uppercase">Cancel</button>
+                                    <button type="submit" className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-black text-lg uppercase shadow-sm">Save Fix</button>
                                 </div>
                             </form>
                         </Modal>
@@ -382,66 +413,268 @@
         }
 
         function AdminDashboard({ staff, shifts, onLogout }) {
-            const [tab, setTab] = useState('payroll');
+            const [tab, setTab] = useState('payroll'); // 'payroll' | 'history' | 'allshifts' | 'staff' | 'import'
+            const [staffFilter, setStaffFilter] = useState('ALL');
+            const [monthFilter, setMonthFilter] = useState('ALL');
+            const [sortBy, setSortBy] = useState('date_desc');
+            const [historyGrouping, setHistoryGrouping] = useState('staff'); // 'staff' | 'date'
+            const [expandedStaffHist, setExpandedStaffHist] = useState({});
+
+            // Modals state
             const [editingStaff, setEditingStaff] = useState(null);
             const [isAddingStaff, setIsAddingStaff] = useState(false);
-            const [confirmState, setConfirmState] = useState({ open: false, title: '', message: '', onConfirm: null });
+            const [editingShiftAdmin, setEditingShiftAdmin] = useState(null);
+            const [payingStaffGroup, setPayingStaffGroup] = useState(null);
+            const [editingPaymentBatch, setEditingPaymentBatch] = useState(null);
+            const [confirmState, setConfirmState] = useState({ open: false, title: '', message: '', isDanger: false, onConfirm: null });
             const [importNotice, setImportNotice] = useState(null);
 
-            const payrollData = useMemo(() => {
-                const map = {};
-                staff.forEach(s => map[s.id] = { ...s, shifts: [], totalMins: 0, totalPay: 0 });
-                
-                shifts.filter(s => s.status === 'unpaid' && s.clockOut).forEach(shift => {
-                    if (map[shift.staffId]) {
-                        const rate = shift.hourlyRateAtTime || map[shift.staffId].hourlyRate || 45;
-                        const { mins, payAmount } = calculatePay(shift.clockIn, shift.clockOut, rate);
-                        map[shift.staffId].shifts.push(shift);
-                        map[shift.staffId].totalMins += mins;
-                        map[shift.staffId].totalPay += payAmount;
+            // Month list from available shifts
+            const availableMonths = useMemo(() => {
+                const set = new Set();
+                shifts.forEach(s => {
+                    if (s.clockIn) {
+                        const d = new Date(s.clockIn);
+                        const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+                        set.add(ym);
                     }
                 });
-                return Object.values(map).filter(d => d.shifts.length > 0);
-            }, [staff, shifts]);
-
-            const paidShifts = useMemo(() => {
-                return shifts
-                    .filter(s => s.status === 'paid')
-                    .sort((a, b) => new Date(b.paidAt || b.clockIn) - new Date(a.paidAt || a.clockIn));
+                return Array.from(set).sort().reverse();
             }, [shifts]);
 
-            const triggerMarkPaid = (staffId, shiftIds, staffName) => {
+            // Helper to format YYYY-MM
+            const formatYearMonth = (ym) => {
+                if (ym === 'ALL') return 'All Time';
+                const [y, m] = ym.split('-');
+                const d = new Date(parseInt(y), parseInt(m) - 1, 1);
+                return d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+            };
+
+            // Filtered Unpaid Shifts
+            const unpaidShifts = useMemo(() => {
+                return shifts.filter(s => {
+                    if (s.status !== 'unpaid' || !s.clockOut) return false;
+                    if (staffFilter !== 'ALL' && s.staffId !== staffFilter) return false;
+                    if (monthFilter !== 'ALL') {
+                        const ym = `${new Date(s.clockIn).getFullYear()}-${String(new Date(s.clockIn).getMonth() + 1).padStart(2, '0')}`;
+                        if (ym !== monthFilter) return false;
+                    }
+                    return true;
+                });
+            }, [shifts, staffFilter, monthFilter]);
+
+            // Group unpaid shifts by staff
+            const payrollByStaff = useMemo(() => {
+                const map = {};
+                staff.forEach(s => {
+                    if (staffFilter === 'ALL' || s.id === staffFilter) {
+                        map[s.id] = { ...s, shifts: [], totalMins: 0, totalPay: 0 };
+                    }
+                });
+
+                unpaidShifts.forEach(shift => {
+                    if (!map[shift.staffId]) {
+                        map[shift.staffId] = {
+                            id: shift.staffId,
+                            name: shift.staffName || 'Unknown Staff',
+                            hourlyRate: shift.hourlyRateAtTime || 45,
+                            shifts: [],
+                            totalMins: 0,
+                            totalPay: 0
+                        };
+                    }
+                    const rate = shift.hourlyRateAtTime || map[shift.staffId].hourlyRate || 45;
+                    const { mins, payAmount } = calculatePay(shift.clockIn, shift.clockOut, rate);
+                    map[shift.staffId].shifts.push(shift);
+                    map[shift.staffId].totalMins += mins;
+                    map[shift.staffId].totalPay += payAmount;
+                });
+
+                return Object.values(map).filter(d => d.shifts.length > 0);
+            }, [staff, unpaidShifts, staffFilter]);
+
+            // Total Unpaid Summary stats
+            const unpaidTotals = useMemo(() => {
+                let totalMins = 0;
+                let totalDollars = 0;
+                unpaidShifts.forEach(s => {
+                    const rate = s.hourlyRateAtTime || 45;
+                    const { mins, payAmount } = calculatePay(s.clockIn, s.clockOut, rate);
+                    totalMins += mins;
+                    totalDollars += payAmount;
+                });
+                return {
+                    mins: totalMins,
+                    dollars: totalDollars,
+                    count: unpaidShifts.length,
+                    formattedHours: formatMinutesToHours(totalMins)
+                };
+            }, [unpaidShifts]);
+
+            // Filtered Paid Shifts
+            const paidShifts = useMemo(() => {
+                let list = shifts.filter(s => {
+                    if (s.status !== 'paid') return false;
+                    if (staffFilter !== 'ALL' && s.staffId !== staffFilter) return false;
+                    if (monthFilter !== 'ALL') {
+                        const dateRef = s.paidAt || s.clockIn;
+                        const ym = `${new Date(dateRef).getFullYear()}-${String(new Date(dateRef).getMonth() + 1).padStart(2, '0')}`;
+                        if (ym !== monthFilter) return false;
+                    }
+                    return true;
+                });
+
+                // Sorting
+                list.sort((a, b) => {
+                    const timeA = new Date(a.paidAt || a.clockIn).getTime();
+                    const timeB = new Date(b.paidAt || b.clockIn).getTime();
+                    if (sortBy === 'date_asc') return timeA - timeB;
+                    if (sortBy === 'date_desc') return timeB - timeA;
+                    
+                    const payA = a.paidAmount ?? calculatePay(a.clockIn, a.clockOut, a.hourlyRateAtTime).payAmount;
+                    const payB = b.paidAmount ?? calculatePay(b.clockIn, b.clockOut, b.hourlyRateAtTime).payAmount;
+                    if (sortBy === 'pay_desc') return payB - payA;
+                    if (sortBy === 'pay_asc') return payA - payB;
+                    return timeB - timeA;
+                });
+
+                return list;
+            }, [shifts, staffFilter, monthFilter, sortBy]);
+
+            // Paid totals
+            const paidTotals = useMemo(() => {
+                let totalMins = 0;
+                let totalDollars = 0;
+                paidShifts.forEach(s => {
+                    const { mins, payAmount } = calculatePay(s.clockIn, s.clockOut, s.hourlyRateAtTime);
+                    totalMins += mins;
+                    totalDollars += (s.paidAmount !== undefined ? Number(s.paidAmount) : payAmount);
+                });
+                return {
+                    mins: totalMins,
+                    dollars: totalDollars,
+                    count: paidShifts.length,
+                    formattedHours: formatMinutesToHours(totalMins)
+                };
+            }, [paidShifts]);
+
+            // Paid history grouped by Staff
+            const paidByStaff = useMemo(() => {
+                const map = {};
+                paidShifts.forEach(s => {
+                    const sid = s.staffId || 'unknown';
+                    if (!map[sid]) {
+                        map[sid] = {
+                            staffId: sid,
+                            staffName: s.staffName || 'Staff Member',
+                            shifts: [],
+                            totalMins: 0,
+                            totalDollars: 0
+                        };
+                    }
+                    const { mins, payAmount } = calculatePay(s.clockIn, s.clockOut, s.hourlyRateAtTime);
+                    map[sid].shifts.push(s);
+                    map[sid].totalMins += mins;
+                    map[sid].totalDollars += (s.paidAmount !== undefined ? Number(s.paidAmount) : payAmount);
+                });
+                return Object.values(map);
+            }, [paidShifts]);
+
+            const executeProcessPayment = async (e) => {
+                e.preventDefault();
+                if (!payingStaffGroup) return;
+                const fd = new FormData(e.target);
+                const customPayAmount = parseFloat(fd.get('payAmount')) || payingStaffGroup.calculatedTotalPay;
+                const paymentNote = fd.get('paymentNotes')?.toString().trim() || '';
+                const paidAt = new Date().toISOString();
+                const paymentBatchId = `batch_${Date.now()}`;
+
+                const shiftCount = payingStaffGroup.shifts.length;
+                const batch = writeBatch(db);
+
+                // Distribute payment note and amount record across shifts in batch
+                payingStaffGroup.shifts.forEach((shift, index) => {
+                    const { payAmount } = calculatePay(shift.clockIn, shift.clockOut, shift.hourlyRateAtTime);
+                    // If exact match or multiple, allocate proportionately
+                    const share = shiftCount > 1 
+                        ? (payAmount / payingStaffGroup.calculatedTotalPay) * customPayAmount 
+                        : customPayAmount;
+
+                    batch.update(doc(db, 'artifacts', APP_ID, 'public', 'data', SHIFTS_COLLECTION, shift.id), {
+                        status: 'paid',
+                        paidAt: paidAt,
+                        paymentBatchId: paymentBatchId,
+                        paidAmount: Number(share.toFixed(2)),
+                        paymentNotes: paymentNote
+                    });
+                });
+
+                await batch.commit();
+                setPayingStaffGroup(null);
+            };
+
+            // Revert paid shift back to unpaid
+            const triggerRevertPaidShift = (shift) => {
                 setConfirmState({
                     open: true,
-                    title: "Mark Hours as Paid",
-                    message: `Are you sure you want to mark all outstanding hours for ${staffName} as PAID?`,
+                    title: "Revert to Unpaid?",
+                    message: `Move this ${formatDate(shift.clockIn)} shift for ${shift.staffName} back to the Unpaid Wages queue?`,
+                    isDanger: false,
+                    confirmText: "Revert to Unpaid",
                     onConfirm: async () => {
-                        const batch = writeBatch(db);
-                        const now = new Date().toISOString();
-                        shiftIds.forEach(id => {
-                            batch.update(doc(db, 'artifacts', APP_ID, 'public', 'data', SHIFTS_COLLECTION, id), { 
-                                status: 'paid',
-                                paidAt: now
-                            });
+                        await updateDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', SHIFTS_COLLECTION, shift.id), {
+                            status: 'unpaid',
+                            paidAt: null,
+                            paymentBatchId: null,
+                            paymentNotes: null
                         });
-                        await batch.commit();
                         setConfirmState({ open: false });
                     }
                 });
             };
 
-            const triggerDeleteStaff = (id, name) => {
+            // Save Shift Edit in Admin
+            const handleAdminSaveShift = async (e) => {
+                e.preventDefault();
+                const fd = new FormData(e.target);
+                const cin = fd.get('clockIn');
+                const cout = fd.get('clockOut');
+                const rate = parseFloat(fd.get('hourlyRate')) || 45;
+                const notes = fd.get('notes')?.toString().trim() || '';
+                const status = fd.get('status') || editingShiftAdmin.status || 'unpaid';
+
+                if (cin) {
+                    const startIso = new Date(cin).toISOString();
+                    const endIso = cout ? new Date(cout).toISOString() : null;
+
+                    await updateDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', SHIFTS_COLLECTION, editingShiftAdmin.id), {
+                        clockIn: startIso,
+                        clockOut: endIso,
+                        hourlyRateAtTime: rate,
+                        notes: notes,
+                        status: status
+                    });
+                    setEditingShiftAdmin(null);
+                }
+            };
+
+            // Delete shift permanently
+            const triggerDeleteShift = (shiftId) => {
                 setConfirmState({
                     open: true,
-                    title: "Delete Caretaker",
-                    message: `Are you sure you want to permanently delete ${name}? This cannot be undone.`,
+                    title: "Delete Shift Record",
+                    message: "Are you sure you want to permanently delete this shift? This cannot be undone.",
+                    isDanger: true,
+                    confirmText: "Delete Shift",
                     onConfirm: async () => {
-                        await deleteDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', STAFF_COLLECTION, id));
+                        await deleteDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', SHIFTS_COLLECTION, shiftId));
+                        setEditingShiftAdmin(null);
                         setConfirmState({ open: false });
                     }
                 });
             };
 
+            // Save staff profile
             const handleSaveStaff = async (e) => {
                 e.preventDefault();
                 const fd = new FormData(e.target);
@@ -460,6 +693,22 @@
                 }
             };
 
+            // Delete staff member
+            const triggerDeleteStaff = (id, name) => {
+                setConfirmState({
+                    open: true,
+                    title: "Delete Caretaker",
+                    message: `Are you sure you want to permanently delete ${name}? All past shifts will remain recorded in database history.`,
+                    isDanger: true,
+                    confirmText: "Delete",
+                    onConfirm: async () => {
+                        await deleteDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', STAFF_COLLECTION, id));
+                        setConfirmState({ open: false });
+                    }
+                });
+            };
+
+            // CSV Import
             const handleImport = async (e) => {
                 e.preventDefault();
                 const csv = e.target.csv.value.trim();
@@ -474,6 +723,7 @@
                         const dateStr = parts[0];
                         const name = parts[1];
                         const hours = parseFloat(parts[2]);
+                        const note = parts[3] || '';
                         
                         if (!isNaN(hours)) {
                             const staffMatch = staff.find(s => s.name.toLowerCase() === name.toLowerCase());
@@ -491,6 +741,7 @@
                                     hourlyRateAtTime: rate,
                                     clockIn: startDt.toISOString(),
                                     clockOut: endDt.toISOString(),
+                                    notes: note,
                                     status: 'paid',
                                     paidAt: new Date().toISOString()
                                 });
@@ -505,80 +756,171 @@
                     setImportNotice({ type: 'success', text: `Successfully imported ${count} historical shift records.` });
                     e.target.reset();
                 } else {
-                    setImportNotice({ type: 'error', text: "Could not read any valid data rows. Check the format: Date, Name, Hours" });
+                    setImportNotice({ type: 'error', text: "Could not read any valid data rows. Check the format: Date, Name, Hours, Notes" });
                 }
             };
 
             return (
-                <div className="flex flex-col h-full bg-slate-50">
-                    <header className="bg-slate-900 text-white px-5 py-3 flex justify-between items-center shrink-0">
+                <div className="flex flex-col h-full bg-slate-100">
+                    <header className="bg-slate-900 text-white px-6 py-4 flex justify-between items-center shrink-0 shadow-md">
                         <div>
-                            <h1 className="text-xl font-extrabold uppercase tracking-wide text-emerald-400">Admin Dashboard</h1>
-                            <p className="text-xs text-slate-400 font-semibold">Mom's Overview</p>
+                            <h1 className="text-2xl font-black uppercase tracking-wide text-emerald-400">AmmaPay Admin</h1>
+                            <p className="text-sm text-slate-300 font-bold">Mom's Complete Payroll & Timesheet Overview</p>
                         </div>
-                        <button onClick={onLogout} className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 rounded-lg font-bold text-sm text-white transition-colors">
-                            <LogOut size={16} /> Exit
+                        <button onClick={onLogout} className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-xl font-black text-base text-white transition-colors border border-slate-700">
+                            <LogOut size={18} /> Exit Admin
                         </button>
                     </header>
 
-                    <nav className="flex bg-white border-b border-slate-200 shrink-0 shadow-xs overflow-x-auto">
-                        <button onClick={() => setTab('payroll')} className={`px-5 py-3 text-sm font-extrabold uppercase tracking-wide border-b-2 whitespace-nowrap transition-colors flex items-center gap-1.5 ${tab === 'payroll' ? 'border-emerald-600 text-emerald-700 bg-emerald-50/50' : 'border-transparent text-slate-500 hover:bg-slate-100'}`}><DollarSign size={17}/> Unpaid Wages</button>
-                        <button onClick={() => setTab('history')} className={`px-5 py-3 text-sm font-extrabold uppercase tracking-wide border-b-2 whitespace-nowrap transition-colors flex items-center gap-1.5 ${tab === 'history' ? 'border-blue-600 text-blue-700 bg-blue-50/50' : 'border-transparent text-slate-500 hover:bg-slate-100'}`}><History size={17}/> Payment History</button>
-                        <button onClick={() => setTab('staff')} className={`px-5 py-3 text-sm font-extrabold uppercase tracking-wide border-b-2 whitespace-nowrap transition-colors flex items-center gap-1.5 ${tab === 'staff' ? 'border-indigo-600 text-indigo-700 bg-indigo-50/50' : 'border-transparent text-slate-500 hover:bg-slate-100'}`}><Users size={17}/> Manage Staff</button>
-                        <button onClick={() => setTab('import')} className={`px-5 py-3 text-sm font-extrabold uppercase tracking-wide border-b-2 whitespace-nowrap transition-colors flex items-center gap-1.5 ${tab === 'import' ? 'border-amber-600 text-amber-700 bg-amber-50/50' : 'border-transparent text-slate-500 hover:bg-slate-100'}`}><FileUp size={17}/> Import Data</button>
+                    {/* Navigation Tabs */}
+                    <nav className="flex bg-white border-b-2 border-slate-300 shrink-0 shadow-xs overflow-x-auto">
+                        <button onClick={() => setTab('payroll')} className={`px-6 py-4 text-base font-black uppercase tracking-wide border-b-4 whitespace-nowrap transition-colors flex items-center gap-2 ${tab === 'payroll' ? 'border-emerald-600 text-emerald-700 bg-emerald-50' : 'border-transparent text-slate-600 hover:bg-slate-100'}`}><DollarSign size={20}/> Unpaid Wages ({unpaidTotals.count})</button>
+                        <button onClick={() => setTab('history')} className={`px-6 py-4 text-base font-black uppercase tracking-wide border-b-4 whitespace-nowrap transition-colors flex items-center gap-2 ${tab === 'history' ? 'border-blue-600 text-blue-700 bg-blue-50' : 'border-transparent text-slate-600 hover:bg-slate-100'}`}><History size={20}/> Payment History</button>
+                        <button onClick={() => setTab('staff')} className={`px-6 py-4 text-base font-black uppercase tracking-wide border-b-4 whitespace-nowrap transition-colors flex items-center gap-2 ${tab === 'staff' ? 'border-indigo-600 text-indigo-700 bg-indigo-50' : 'border-transparent text-slate-600 hover:bg-slate-100'}`}><Users size={20}/> Caretakers ({staff.length})</button>
+                        <button onClick={() => setTab('import')} className={`px-6 py-4 text-base font-black uppercase tracking-wide border-b-4 whitespace-nowrap transition-colors flex items-center gap-2 ${tab === 'import' ? 'border-amber-600 text-amber-700 bg-amber-50' : 'border-transparent text-slate-600 hover:bg-slate-100'}`}><FileUp size={20}/> Import Past Data</button>
                     </nav>
 
-                    <div className="flex-1 overflow-y-auto p-5 flex justify-center">
-                        <div className="w-full max-w-3xl">
+                    {/* Filter and Sorting Bar (Visible for payroll & history tabs) */}
+                    {(tab === 'payroll' || tab === 'history') && (
+                        <div className="bg-white border-b border-slate-300 px-6 py-3 shrink-0 flex flex-wrap items-center justify-between gap-4 shadow-xs">
+                            <div className="flex flex-wrap items-center gap-4">
+                                <div className="flex items-center gap-2">
+                                    <Filter size={18} className="text-slate-500" />
+                                    <span className="text-xs font-black uppercase text-slate-500 tracking-wider">Caretaker:</span>
+                                    <select value={staffFilter} onChange={e => setStaffFilter(e.target.value)} className="bg-slate-100 border-2 border-slate-300 rounded-xl px-3 py-1.5 text-base font-black text-slate-800 outline-none focus:border-blue-500">
+                                        <option value="ALL">All Caretakers</option>
+                                        {staff.map(s => (
+                                            <option key={s.id} value={s.id}>{s.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
 
+                                <div className="flex items-center gap-2">
+                                    <Calendar size={18} className="text-slate-500" />
+                                    <span className="text-xs font-black uppercase text-slate-500 tracking-wider">Month:</span>
+                                    <select value={monthFilter} onChange={e => setMonthFilter(e.target.value)} className="bg-slate-100 border-2 border-slate-300 rounded-xl px-3 py-1.5 text-base font-black text-slate-800 outline-none focus:border-blue-500">
+                                        <option value="ALL">All Months</option>
+                                        {availableMonths.map(ym => (
+                                            <option key={ym} value={ym}>{formatYearMonth(ym)}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+
+                            {tab === 'history' && (
+                                <div className="flex flex-wrap items-center gap-3">
+                                    <div className="flex bg-slate-200 p-1 rounded-xl">
+                                        <button onClick={() => setHistoryGrouping('staff')} className={`px-3 py-1 text-sm font-black uppercase rounded-lg transition-colors ${historyGrouping === 'staff' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-600'}`}>By Caretaker</button>
+                                        <button onClick={() => setHistoryGrouping('date')} className={`px-3 py-1 text-sm font-black uppercase rounded-lg transition-colors ${historyGrouping === 'date' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-600'}`}>By Date</button>
+                                    </div>
+
+                                    <div className="flex items-center gap-2">
+                                        <ArrowUpDown size={18} className="text-slate-500" />
+                                        <select value={sortBy} onChange={e => setSortBy(e.target.value)} className="bg-slate-100 border-2 border-slate-300 rounded-xl px-3 py-1.5 text-sm font-black text-slate-800 outline-none focus:border-blue-500">
+                                            <option value="date_desc">Newest First</option>
+                                            <option value="date_asc">Oldest First</option>
+                                            <option value="pay_desc">Highest Pay</option>
+                                            <option value="pay_asc">Lowest Pay</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Main Content Area */}
+                    <div className="flex-1 overflow-y-auto p-6 flex justify-center">
+                        <div className="w-full max-w-4xl space-y-6">
+
+                            {}
                             {tab === 'payroll' && (
-                                <div className="space-y-4">
-                                    <h2 className="text-xl font-extrabold text-slate-800 uppercase tracking-wide border-b-2 border-emerald-500 pb-1 inline-block">Unpaid Wages</h2>
-                                    {payrollData.length === 0 && (
-                                        <div className="p-6 text-center bg-white border border-dashed border-slate-300 rounded-xl">
-                                            <p className="text-lg font-bold text-slate-500">Everyone is fully paid up!</p>
-                                            <p className="text-sm text-slate-400 mt-1">There are no completed, unpaid shifts waiting right now.</p>
+                                <div className="space-y-6">
+                                    {/* Overall Unpaid Totals Banner */}
+                                    <div className="bg-gradient-to-r from-emerald-600 to-teal-700 text-white rounded-2xl p-6 shadow-md flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                                        <div>
+                                            <p className="text-emerald-200 text-sm font-black uppercase tracking-wider">Total Outstanding Pay</p>
+                                            <h2 className="text-4xl font-black tracking-tight">${unpaidTotals.dollars.toFixed(2)}</h2>
+                                        </div>
+                                        <div className="flex gap-4">
+                                            <div className="bg-white/15 px-4 py-2.5 rounded-xl border border-white/20">
+                                                <p className="text-emerald-200 text-xs font-black uppercase tracking-wider">Total Time</p>
+                                                <p className="text-2xl font-black">{unpaidTotals.formattedHours}</p>
+                                            </div>
+                                            <div className="bg-white/15 px-4 py-2.5 rounded-xl border border-white/20">
+                                                <p className="text-emerald-200 text-xs font-black uppercase tracking-wider">Unpaid Shifts</p>
+                                                <p className="text-2xl font-black">{unpaidTotals.count}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {payrollByStaff.length === 0 && (
+                                        <div className="p-10 text-center bg-white border-2 border-dashed border-slate-300 rounded-2xl space-y-2">
+                                            <p className="text-2xl font-black text-slate-700">Everyone is fully paid up!</p>
+                                            <p className="text-base text-slate-500 font-semibold">There are no completed, unpaid shifts matching this filter.</p>
                                         </div>
                                     )}
                                     
-                                    {payrollData.map(person => {
-                                        const h = Math.floor(person.totalMins / 60);
-                                        const m = person.totalMins % 60;
+                                    {payrollByStaff.map(person => {
                                         return (
-                                            <div key={person.id} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mb-4">
-                                                <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center bg-slate-50/80 gap-3">
+                                            <div key={person.id} className="bg-white rounded-2xl border-2 border-slate-200 shadow-sm overflow-hidden">
+                                                <div className="p-5 border-b border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center bg-slate-50/90 gap-4">
                                                     <div>
-                                                        <h3 className="text-xl font-bold text-slate-900">{person.name}</h3>
-                                                        <p className="text-slate-500 font-bold text-xs uppercase tracking-wide mt-0.5">${person.hourlyRate || 45}/hr Wage</p>
+                                                        <h3 className="text-2xl font-black text-slate-900">{person.name}</h3>
+                                                        <p className="text-slate-600 font-black text-sm uppercase tracking-wide mt-0.5">${person.hourlyRate || 45}/hr Standard Wage</p>
                                                     </div>
-                                                    <div className="text-left sm:text-right bg-emerald-50 px-4 py-2 rounded-xl border border-emerald-200">
-                                                        <div className="text-xs font-bold text-emerald-600 uppercase tracking-wider">Total Cash Owed</div>
-                                                        <div className="text-2xl font-black text-emerald-700 tracking-tight">${person.totalPay.toFixed(2)}</div>
-                                                        <div className="text-xs font-semibold text-emerald-600/90">{h} hours {m} mins</div>
+                                                    <div className="text-left sm:text-right bg-emerald-50 px-5 py-3 rounded-2xl border-2 border-emerald-300">
+                                                        <div className="text-xs font-black text-emerald-700 uppercase tracking-wider">Amount Owed</div>
+                                                        <div className="text-3xl font-black text-emerald-800 tracking-tight">${person.totalPay.toFixed(2)}</div>
+                                                        <div className="text-sm font-bold text-emerald-700">{formatMinutesToHours(person.totalMins)} ({person.shifts.length} shifts)</div>
                                                     </div>
                                                 </div>
-                                                <div className="p-4 bg-white divide-y divide-slate-100">
-                                                    <h4 className="text-xs font-bold uppercase text-slate-400 tracking-wider mb-2">Completed Shifts:</h4>
+
+                                                {/* Shift Details List */}
+                                                <div className="p-5 bg-white divide-y divide-slate-100 space-y-2">
+                                                    <h4 className="text-xs font-black uppercase text-slate-400 tracking-wider">Completed Shifts To Pay:</h4>
                                                     {person.shifts.map(shift => {
                                                         const rate = shift.hourlyRateAtTime || person.hourlyRate || 45;
                                                         const { formattedTime, payAmount } = calculatePay(shift.clockIn, shift.clockOut, rate);
                                                         return (
-                                                            <div key={shift.id} className="py-2.5 flex justify-between items-center text-sm">
-                                                                <div>
-                                                                    <div className="font-bold text-slate-800">{formatDate(shift.clockIn)}</div>
-                                                                    <div className="text-xs text-slate-500 font-medium">{formatTime(shift.clockIn)} - {formatTime(shift.clockOut)}</div>
+                                                            <div key={shift.id} className="py-3 flex flex-col sm:flex-row justify-between sm:items-center gap-3">
+                                                                <div className="space-y-1">
+                                                                    <div className="text-base font-black text-slate-900">{formatDate(shift.clockIn)}</div>
+                                                                    <div className="text-sm text-slate-600 font-bold">
+                                                                        {formatTime(shift.clockIn)} — {formatTime(shift.clockOut)} (${rate}/hr)
+                                                                    </div>
+                                                                    {shift.notes && (
+                                                                        <div className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-lg">
+                                                                            <FileText size={14}/>
+                                                                            <span>{shift.notes}</span>
+                                                                        </div>
+                                                                    )}
                                                                 </div>
-                                                                <div className="text-right">
-                                                                    <div className="text-base font-bold text-slate-800">${payAmount.toFixed(2)}</div>
-                                                                    <div className="text-xs font-semibold text-slate-400">{formattedTime}</div>
+                                                                <div className="flex items-center justify-between sm:justify-end gap-4">
+                                                                    <div className="text-right">
+                                                                        <div className="text-xl font-black text-slate-900">${payAmount.toFixed(2)}</div>
+                                                                        <div className="text-xs font-bold text-slate-500">{formattedTime}</div>
+                                                                    </div>
+                                                                    <button onClick={() => setEditingShiftAdmin(shift)} className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-black text-xs uppercase flex items-center gap-1">
+                                                                        <Edit size={14}/> Edit
+                                                                    </button>
                                                                 </div>
                                                             </div>
                                                         );
                                                     })}
                                                 </div>
-                                                <div className="p-4 bg-slate-50 border-t border-slate-100">
-                                                    <button onClick={() => triggerMarkPaid(person.id, person.shifts.map(s => s.id), person.name)} className="w-full py-3 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-extrabold text-base uppercase tracking-wider shadow-sm flex items-center justify-center gap-2 transition-transform active:scale-[0.99]">
-                                                        <CheckCircle size={20}/> Mark as Paid
+
+                                                <div className="p-5 bg-slate-50 border-t border-slate-200">
+                                                    <button 
+                                                        onClick={() => setPayingStaffGroup({
+                                                            staffId: person.id,
+                                                            staffName: person.name,
+                                                            calculatedTotalPay: person.totalPay,
+                                                            totalMins: person.totalMins,
+                                                            shifts: person.shifts
+                                                        })} 
+                                                        className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black text-xl uppercase tracking-wider shadow-md flex items-center justify-center gap-3 transition-transform active:scale-[0.99]"
+                                                    >
+                                                        <CheckCircle size={24}/> Pay {person.name} (${person.totalPay.toFixed(2)})
                                                     </button>
                                                 </div>
                                             </div>
@@ -587,69 +929,185 @@
                                 </div>
                             )}
 
+                            {}
                             {tab === 'history' && (
-                                <div className="space-y-4">
-                                    <h2 className="text-xl font-extrabold text-slate-800 uppercase tracking-wide border-b-2 border-blue-500 pb-1 inline-block">Payment History</h2>
-                                    {paidShifts.length === 0 && <div className="p-6 text-center font-bold text-slate-400 text-base border border-dashed border-slate-300 rounded-xl">No paid shifts recorded yet.</div>}
-                                    
-                                    <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
-                                        <div className="divide-y divide-slate-100">
-                                            {paidShifts.map(shift => {
-                                                const rate = shift.hourlyRateAtTime || 45;
-                                                const { formattedTime, payAmount } = calculatePay(shift.clockIn, shift.clockOut, rate);
+                                <div className="space-y-6">
+                                    {/* History Totals Banner */}
+                                    <div className="bg-gradient-to-r from-blue-700 to-indigo-800 text-white rounded-2xl p-6 shadow-md flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                                        <div>
+                                            <p className="text-blue-200 text-sm font-black uppercase tracking-wider">Filtered Payment Total</p>
+                                            <h2 className="text-4xl font-black tracking-tight">${paidTotals.dollars.toFixed(2)}</h2>
+                                        </div>
+                                        <div className="flex gap-4">
+                                            <div className="bg-white/15 px-4 py-2.5 rounded-xl border border-white/20">
+                                                <p className="text-blue-200 text-xs font-black uppercase tracking-wider">Total Hours</p>
+                                                <p className="text-2xl font-black">{paidTotals.formattedHours}</p>
+                                            </div>
+                                            <div className="bg-white/15 px-4 py-2.5 rounded-xl border border-white/20">
+                                                <p className="text-blue-200 text-xs font-black uppercase tracking-wider">Paid Shifts</p>
+                                                <p className="text-2xl font-black">{paidTotals.count}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {paidShifts.length === 0 && (
+                                        <div className="p-10 text-center font-bold text-slate-500 text-lg border-2 border-dashed border-slate-300 rounded-2xl">
+                                            No payment records found matching this filter.
+                                        </div>
+                                    )}
+
+                                    {/* GROUPED BY STAFF VIEW */}
+                                    {historyGrouping === 'staff' && (
+                                        <div className="space-y-4">
+                                            {paidByStaff.map(group => {
+                                                const isExpanded = !!expandedStaffHist[group.staffId];
                                                 return (
-                                                    <div key={shift.id} className="p-3.5 flex flex-col sm:flex-row justify-between sm:items-center hover:bg-slate-50 transition-colors gap-2 text-sm">
-                                                        <div className="flex-1">
-                                                            <div className="flex items-center gap-2">
-                                                                <span className="font-bold text-slate-900">{shift.staffName}</span>
-                                                                <span className="bg-blue-100 text-blue-800 text-xs font-bold uppercase px-2 py-0.5 rounded tracking-wider">Paid</span>
+                                                    <div key={group.staffId} className="bg-white rounded-2xl border-2 border-slate-200 shadow-sm overflow-hidden">
+                                                        <div 
+                                                            onClick={() => setExpandedStaffHist(prev => ({ ...prev, [group.staffId]: !isExpanded }))}
+                                                            className="p-5 flex justify-between items-center cursor-pointer hover:bg-slate-50 transition-colors select-none"
+                                                        >
+                                                            <div className="flex items-center gap-3">
+                                                                {isExpanded ? <ChevronUp size={24} className="text-blue-600"/> : <ChevronDown size={24} className="text-slate-400"/>}
+                                                                <div>
+                                                                    <h3 className="text-2xl font-black text-slate-900">{group.staffName}</h3>
+                                                                    <p className="text-sm font-bold text-slate-500">{group.shifts.length} paid shifts ({formatMinutesToHours(group.totalMins)})</p>
+                                                                </div>
                                                             </div>
-                                                            <div className="text-xs font-medium text-slate-600 mt-0.5">{formatDate(shift.clockIn)}</div>
-                                                            <div className="text-xs text-slate-400">{formatTime(shift.clockIn)} - {formatTime(shift.clockOut)}</div>
+                                                            <div className="text-right">
+                                                                <div className="text-2xl font-black text-blue-700">${group.totalDollars.toFixed(2)}</div>
+                                                                <span className="text-xs font-black uppercase text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md">Total Paid</span>
+                                                            </div>
                                                         </div>
-                                                        <div className="text-left sm:text-right bg-slate-100 px-3 py-1.5 rounded-lg">
-                                                            <div className="text-base font-bold text-slate-800">${payAmount.toFixed(2)}</div>
-                                                            <div className="text-xs font-semibold text-slate-500">{formattedTime}</div>
+
+                                                        {isExpanded && (
+                                                            <div className="border-t border-slate-200 divide-y divide-slate-100 bg-slate-50/50 p-4">
+                                                                {group.shifts.map(shift => {
+                                                                    const { formattedTime, payAmount } = calculatePay(shift.clockIn, shift.clockOut, shift.hourlyRateAtTime);
+                                                                    const paidVal = shift.paidAmount !== undefined ? shift.paidAmount : payAmount;
+                                                                    return (
+                                                                        <div key={shift.id} className="py-3 px-2 flex flex-col sm:flex-row justify-between sm:items-center gap-3">
+                                                                            <div className="space-y-1">
+                                                                                <div className="text-base font-black text-slate-900">{formatDate(shift.clockIn)}</div>
+                                                                                <div className="text-sm text-slate-600 font-semibold">
+                                                                                    {formatTime(shift.clockIn)} - {formatTime(shift.clockOut)} ({formattedTime})
+                                                                                </div>
+                                                                                {shift.paymentNotes && (
+                                                                                    <div className="text-xs font-bold text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded inline-block">
+                                                                                        Payment Note: {shift.paymentNotes}
+                                                                                    </div>
+                                                                                )}
+                                                                                {shift.notes && (
+                                                                                    <div className="text-xs font-bold text-slate-600 bg-slate-200/70 px-2.5 py-0.5 rounded inline-block ml-1">
+                                                                                        Shift Note: {shift.notes}
+                                                                                    </div>
+                                                                                )}
+                                                                            </div>
+                                                                            <div className="flex items-center gap-3">
+                                                                                <div className="text-right">
+                                                                                    <div className="text-xl font-black text-slate-900">${paidVal.toFixed(2)}</div>
+                                                                                    <div className="text-xs font-bold text-slate-500">Paid on {formatDate(shift.paidAt || shift.clockIn)}</div>
+                                                                                </div>
+                                                                                <button onClick={() => setEditingShiftAdmin(shift)} className="p-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl" title="Edit Shift">
+                                                                                    <Edit size={16} />
+                                                                                </button>
+                                                                                <button onClick={() => triggerRevertPaidShift(shift)} className="px-3 py-2 bg-amber-100 hover:bg-amber-200 text-amber-900 font-black text-xs uppercase rounded-xl flex items-center gap-1" title="Move back to unpaid queue">
+                                                                                    <RotateCcw size={14}/> Revert
+                                                                                </button>
+                                                                            </div>
+                                                                        </div>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+
+                                    {/* CHRONOLOGICAL VIEW */}
+                                    {historyGrouping === 'date' && (
+                                        <div className="bg-white rounded-2xl border-2 border-slate-200 shadow-sm overflow-hidden divide-y divide-slate-100">
+                                            {paidShifts.map(shift => {
+                                                const { formattedTime, payAmount } = calculatePay(shift.clockIn, shift.clockOut, shift.hourlyRateAtTime);
+                                                const paidVal = shift.paidAmount !== undefined ? shift.paidAmount : payAmount;
+                                                return (
+                                                    <div key={shift.id} className="p-5 flex flex-col sm:flex-row justify-between sm:items-center hover:bg-slate-50 transition-colors gap-3">
+                                                        <div className="space-y-1">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="text-lg font-black text-slate-900">{shift.staffName}</span>
+                                                                <span className="bg-blue-100 text-blue-900 text-xs font-black uppercase px-2.5 py-0.5 rounded-md">Paid</span>
+                                                            </div>
+                                                            <div className="text-sm font-bold text-slate-600">
+                                                                Worked {formatDate(shift.clockIn)} ({formatTime(shift.clockIn)} - {formatTime(shift.clockOut)})
+                                                            </div>
+                                                            {shift.paymentNotes && (
+                                                                <div className="text-xs font-bold text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded inline-block">
+                                                                    Payment Note: {shift.paymentNotes}
+                                                                </div>
+                                                            )}
+                                                            {shift.notes && (
+                                                                <div className="text-xs font-bold text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded inline-block ml-1">
+                                                                    Shift Note: {shift.notes}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="text-right bg-slate-100 px-4 py-2 rounded-xl">
+                                                                <div className="text-2xl font-black text-slate-900">${paidVal.toFixed(2)}</div>
+                                                                <div className="text-xs font-bold text-slate-500">{formattedTime}</div>
+                                                            </div>
+                                                            <button onClick={() => setEditingShiftAdmin(shift)} className="p-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl" title="Edit Shift">
+                                                                <Edit size={18} />
+                                                            </button>
+                                                            <button onClick={() => triggerRevertPaidShift(shift)} className="px-3 py-2 bg-amber-100 hover:bg-amber-200 text-amber-900 font-black text-xs uppercase rounded-xl flex items-center gap-1">
+                                                                <RotateCcw size={14}/> Revert
+                                                            </button>
                                                         </div>
                                                     </div>
                                                 );
                                             })}
                                         </div>
-                                    </div>
+                                    )}
                                 </div>
                             )}
 
+                            {}
                             {tab === 'staff' && (
-                                <div className="space-y-4">
-                                    <div className="flex justify-between items-center border-b-2 border-indigo-500 pb-1">
-                                        <h2 className="text-xl font-extrabold text-slate-800 uppercase tracking-wide">Manage Staff</h2>
-                                        <button onClick={() => setIsAddingStaff(true)} className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold text-sm flex items-center gap-1.5 shadow-xs">
-                                            <Plus size={16}/> Add Staff
+                                <div className="space-y-6">
+                                    <div className="flex justify-between items-center border-b-2 border-indigo-500 pb-2">
+                                        <div>
+                                            <h2 className="text-2xl font-black text-slate-900 uppercase tracking-wide">Manage Caretakers</h2>
+                                            <p className="text-slate-600 font-bold text-sm">Add or edit PINs and hourly wage rates</p>
+                                        </div>
+                                        <button onClick={() => setIsAddingStaff(true)} className="px-5 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-base flex items-center gap-2 shadow-md">
+                                            <Plus size={20}/> Add Caretaker
                                         </button>
                                     </div>
                                     
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                                         {staff.map(member => (
-                                            <div key={member.id} className="bg-white rounded-xl border border-slate-200 shadow-xs p-4 flex flex-col justify-between">
+                                            <div key={member.id} className="bg-white rounded-2xl border-2 border-slate-200 shadow-sm p-5 flex flex-col justify-between space-y-4">
                                                 <div>
-                                                    <h3 className="text-lg font-bold text-slate-900 mb-2">{member.name}</h3>
-                                                    <div className="space-y-1.5 text-sm">
-                                                        <div className="bg-slate-100 p-2.5 rounded-lg flex justify-between items-center">
-                                                            <span className="font-bold uppercase text-slate-500 text-xs">Hourly Wage</span>
-                                                            <span className="font-black text-emerald-600 text-lg">${member.hourlyRate || 45}/hr</span>
+                                                    <h3 className="text-2xl font-black text-slate-900">{member.name}</h3>
+                                                    <div className="space-y-2 mt-3">
+                                                        <div className="bg-slate-100 p-3 rounded-xl flex justify-between items-center">
+                                                            <span className="font-black uppercase text-slate-500 text-xs tracking-wider">Hourly Wage</span>
+                                                            <span className="font-black text-emerald-700 text-xl">${member.hourlyRate || 45}/hr</span>
                                                         </div>
-                                                        <div className="bg-slate-100 p-2.5 rounded-lg flex justify-between items-center">
-                                                            <span className="font-bold uppercase text-slate-500 text-xs">Secret PIN</span>
-                                                            <span className="font-black text-slate-800 text-lg tracking-widest">{member.pin}</span>
+                                                        <div className="bg-slate-100 p-3 rounded-xl flex justify-between items-center">
+                                                            <span className="font-black uppercase text-slate-500 text-xs tracking-wider">Secret 4-Digit PIN</span>
+                                                            <span className="font-black text-slate-900 text-2xl tracking-widest">{member.pin}</span>
                                                         </div>
                                                     </div>
                                                 </div>
-                                                <div className="flex gap-2 mt-4 pt-3 border-t border-slate-100">
-                                                    <button onClick={() => setEditingStaff(member)} className="flex-1 py-2 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded-lg font-bold text-sm flex justify-center items-center gap-1 transition-colors">
-                                                        <Edit size={15}/> Edit
+                                                <div className="flex gap-3 pt-3 border-t border-slate-100">
+                                                    <button onClick={() => setEditingStaff(member)} className="flex-1 py-3 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded-xl font-black text-base flex justify-center items-center gap-1.5 transition-colors">
+                                                        <Edit size={18}/> Edit
                                                     </button>
-                                                    <button onClick={() => triggerDeleteStaff(member.id, member.name)} className="flex-1 py-2 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg font-bold text-sm flex justify-center items-center gap-1 transition-colors">
-                                                        <Trash2 size={15}/> Delete
+                                                    <button onClick={() => triggerDeleteStaff(member.id, member.name)} className="flex-1 py-3 bg-red-100 hover:bg-red-200 text-red-700 rounded-xl font-black text-base flex justify-center items-center gap-1.5 transition-colors">
+                                                        <Trash2 size={18}/> Delete
                                                     </button>
                                                 </div>
                                             </div>
@@ -658,26 +1116,28 @@
                                 </div>
                             )}
 
+                            {}
                             {tab === 'import' && (
-                                <div className="space-y-4 max-w-xl">
-                                    <h2 className="text-xl font-extrabold text-slate-800 uppercase tracking-wide border-b-2 border-amber-500 pb-1 inline-block">Import Past Data</h2>
+                                <div className="space-y-6 max-w-xl mx-auto">
+                                    <h2 className="text-2xl font-black text-slate-900 uppercase tracking-wide border-b-2 border-amber-500 pb-2">Import Past Spreadsheets</h2>
                                     {importNotice && (
-                                        <div className={`p-3 rounded-lg font-bold text-sm border ${importNotice.type === 'success' ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : 'bg-red-100 text-red-800 border-red-300'}`}>
+                                        <div className={`p-4 rounded-xl font-black text-base border-2 ${importNotice.type === 'success' ? 'bg-emerald-100 text-emerald-900 border-emerald-300' : 'bg-red-100 text-red-900 border-red-300'}`}>
                                             {importNotice.text}
                                         </div>
                                     )}
-                                    <div className="bg-white rounded-xl border border-slate-200 shadow-xs p-5">
-                                        <p className="text-sm font-medium text-slate-600 mb-3">
-                                            Paste historical rows below in format: <strong>Date, Name, Hours</strong>.
+                                    <div className="bg-white rounded-2xl border-2 border-slate-200 shadow-sm p-6 space-y-4">
+                                        <p className="text-base font-bold text-slate-700 leading-relaxed">
+                                            Paste spreadsheet rows below in CSV format: <br/>
+                                            <code className="text-amber-800 font-black">Date, Caretaker Name, Total Hours, Notes (optional)</code>
                                         </p>
-                                        <div className="bg-slate-900 text-emerald-400 p-3 rounded-lg font-mono text-xs mb-4 border border-slate-800">
-                                            10/10/2026, Maria, 6.5<br/>
-                                            10/11/2026, John, 4
+                                        <div className="bg-slate-900 text-emerald-400 p-4 rounded-xl font-mono text-sm border border-slate-800 leading-loose">
+                                            10/10/2026, Maria, 6.5, Regular day<br/>
+                                            10/11/2026, John, 4, Sub JR today
                                         </div>
-                                        <form onSubmit={handleImport} className="space-y-3">
-                                            <textarea name="csv" required rows="4" className="w-full bg-slate-50 border border-slate-300 rounded-lg p-3 font-mono text-sm outline-none focus:border-amber-500" placeholder="Paste CSV data here..."></textarea>
-                                            <button type="submit" className="w-full py-3 bg-amber-500 hover:bg-amber-600 text-white rounded-lg font-bold text-base uppercase tracking-wide shadow-sm flex items-center justify-center gap-2">
-                                                <FileUp size={18}/> Import Data
+                                        <form onSubmit={handleImport} className="space-y-4">
+                                            <textarea name="csv" required rows="5" className="w-full bg-slate-50 border-2 border-slate-300 rounded-xl p-4 font-mono text-base outline-none focus:border-amber-500" placeholder="Paste CSV rows here..."></textarea>
+                                            <button type="submit" className="w-full py-4 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-black text-lg uppercase tracking-wide shadow-md flex items-center justify-center gap-2">
+                                                <FileUp size={22}/> Run Import & Save to Records
                                             </button>
                                         </form>
                                     </div>
@@ -687,38 +1147,145 @@
                         </div>
                     </div>
 
-                    {(isAddingStaff || editingStaff) && (
-                        <Modal title={editingStaff ? `Edit ${editingStaff.name}` : "Add New Caretaker"} onClose={() => { setIsAddingStaff(false); setEditingStaff(null); }}>
-                            <form onSubmit={handleSaveStaff} className="space-y-4">
+                    {}
+
+                    {/* Process Payment / Partial Payment Modal */}
+                    {payingStaffGroup && (
+                        <Modal title={`Pay ${payingStaffGroup.staffName}`} onClose={() => setPayingStaffGroup(null)}>
+                            <form onSubmit={executeProcessPayment} className="space-y-5">
+                                <div className="bg-emerald-50 p-4 rounded-2xl border-2 border-emerald-200 space-y-1">
+                                    <p className="text-xs font-black uppercase tracking-wider text-emerald-800">Calculated Unpaid Total</p>
+                                    <p className="text-3xl font-black text-emerald-900">${payingStaffGroup.calculatedTotalPay.toFixed(2)}</p>
+                                    <p className="text-sm font-bold text-emerald-700">For {formatMinutesToHours(payingStaffGroup.totalMins)} across {payingStaffGroup.shifts.length} shift(s)</p>
+                                </div>
+
                                 <div>
-                                    <label className="block text-xs font-bold uppercase text-slate-600 tracking-wide mb-1">Caretaker Name</label>
-                                    <input autoFocus required name="name" type="text" defaultValue={editingStaff ? editingStaff.name : ''} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-base font-bold outline-none focus:border-indigo-500" placeholder="e.g. Maria" />
-                                </div>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-xs font-bold uppercase text-slate-600 tracking-wide mb-1">Secret PIN (4 Digits)</label>
-                                        <input required name="pin" type="text" pattern="\d{4}" maxLength="4" defaultValue={editingStaff ? editingStaff.pin : ''} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xl font-black tracking-widest text-center outline-none focus:border-indigo-500" placeholder="0000" />
+                                    <label className="block text-sm font-black uppercase text-slate-700 tracking-wide mb-1">
+                                        Amount to Pay ($)
+                                    </label>
+                                    <div className="relative">
+                                        <span className="absolute left-4 top-3 text-2xl font-black text-slate-400">$</span>
+                                        <input 
+                                            autoFocus 
+                                            required 
+                                            name="payAmount" 
+                                            type="number" 
+                                            step="0.01" 
+                                            defaultValue={payingStaffGroup.calculatedTotalPay.toFixed(2)} 
+                                            className="w-full bg-slate-50 text-slate-900 border-2 border-slate-300 rounded-xl pl-10 pr-4 py-3 text-2xl font-black outline-none focus:border-emerald-600" 
+                                        />
                                     </div>
-                                    <div>
-                                        <label className="block text-xs font-bold uppercase text-slate-600 tracking-wide mb-1">Hourly Wage ($/hr)</label>
-                                        <div className="relative">
-                                            <span className="absolute left-3 top-2 text-lg font-bold text-slate-400">$</span>
-                                            <input required name="hourlyRate" type="number" step="0.01" defaultValue={editingStaff ? editingStaff.hourlyRate : 45.00} className="w-full bg-emerald-50 text-emerald-800 border border-emerald-300 rounded-lg pl-8 pr-3 py-2 text-lg font-bold outline-none focus:border-emerald-600" />
-                                        </div>
-                                    </div>
+                                    <p className="text-slate-500 font-bold text-xs mt-1.5">Default is full calculated pay. Adjust down for partial payments, or up for bonuses and advances.</p>
                                 </div>
-                                <div className="pt-3 flex gap-2 border-t border-slate-100">
-                                    <button type="button" onClick={() => { setIsAddingStaff(false); setEditingStaff(null); }} className="flex-1 py-2.5 bg-slate-200 hover:bg-slate-300 rounded-lg font-bold text-sm text-slate-700 uppercase">Cancel</button>
-                                    <button type="submit" className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold text-sm uppercase shadow-xs">Save Caretaker</button>
+
+                                <div>
+                                    <label className="block text-sm font-black uppercase text-slate-700 tracking-wide mb-1">
+                                        Payment Note / Method (Optional)
+                                    </label>
+                                    <input 
+                                        name="paymentNotes" 
+                                        type="text" 
+                                        placeholder="e.g. Check #104, Paid cash, Partial advance" 
+                                        className="w-full bg-slate-50 text-slate-900 border-2 border-slate-300 rounded-xl px-4 py-3 text-base font-bold outline-none focus:border-emerald-600" 
+                                    />
+                                </div>
+
+                                <div className="pt-3 flex gap-3 border-t border-slate-100">
+                                    <button type="button" onClick={() => setPayingStaffGroup(null)} className="flex-1 py-3.5 bg-slate-200 hover:bg-slate-300 rounded-xl font-black text-lg text-slate-700 uppercase">Cancel</button>
+                                    <button type="submit" className="flex-1 py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black text-lg uppercase shadow-md">Complete & Mark Paid</button>
                                 </div>
                             </form>
                         </Modal>
                     )}
 
+                    {/* Admin Shift Editor Modal */}
+                    {editingShiftAdmin && (
+                        <Modal title="Edit Shift (Admin)" onClose={() => setEditingShiftAdmin(null)}>
+                            <form onSubmit={handleAdminSaveShift} className="space-y-4">
+                                <div className="bg-slate-100 p-3 rounded-xl border border-slate-200">
+                                    <p className="text-lg font-black text-slate-800">{editingShiftAdmin.staffName}</p>
+                                    <p className="text-xs font-bold uppercase text-slate-500">Record ID: {editingShiftAdmin.id}</p>
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-xs font-black uppercase text-slate-600 tracking-wide mb-1">Clock In Time</label>
+                                        <input required name="clockIn" type="datetime-local" defaultValue={toLocalDatetimeInput(editingShiftAdmin.clockIn)} className="w-full bg-slate-50 border-2 border-slate-300 rounded-xl px-3 py-2 text-base font-bold outline-none focus:border-blue-600" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-black uppercase text-slate-600 tracking-wide mb-1">Clock Out Time</label>
+                                        <input name="clockOut" type="datetime-local" defaultValue={toLocalDatetimeInput(editingShiftAdmin.clockOut)} className="w-full bg-slate-50 border-2 border-slate-300 rounded-xl px-3 py-2 text-base font-bold outline-none focus:border-blue-600" />
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-xs font-black uppercase text-slate-600 tracking-wide mb-1">Hourly Wage for Shift ($/hr)</label>
+                                        <input required name="hourlyRate" type="number" step="0.01" defaultValue={editingShiftAdmin.hourlyRateAtTime || 45} className="w-full bg-slate-50 border-2 border-slate-300 rounded-xl px-3 py-2 text-lg font-black outline-none focus:border-blue-600" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-black uppercase text-slate-600 tracking-wide mb-1">Status</label>
+                                        <select name="status" defaultValue={editingShiftAdmin.status || 'unpaid'} className="w-full bg-slate-50 border-2 border-slate-300 rounded-xl px-3 py-2 text-base font-black outline-none focus:border-blue-600">
+                                            <option value="unpaid">Unpaid</option>
+                                            <option value="paid">Paid</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-black uppercase text-slate-600 tracking-wide mb-1">Shift Notes (e.g. Sub JR, Worked Half Day)</label>
+                                    <input name="notes" type="text" defaultValue={editingShiftAdmin.notes || ''} placeholder="Add reason or note..." className="w-full bg-slate-50 border-2 border-slate-300 rounded-xl px-3 py-2.5 text-base font-bold outline-none focus:border-blue-600" />
+                                </div>
+
+                                <div className="pt-3 flex gap-3 border-t border-slate-200">
+                                    <button type="button" onClick={() => triggerDeleteShift(editingShiftAdmin.id)} className="px-4 py-3 bg-red-100 hover:bg-red-200 text-red-700 rounded-xl font-black text-sm uppercase flex items-center gap-1">
+                                        <Trash2 size={16}/> Delete Shift
+                                    </button>
+                                    <div className="flex-1 flex gap-2">
+                                        <button type="button" onClick={() => setEditingShiftAdmin(null)} className="flex-1 py-3 bg-slate-200 hover:bg-slate-300 rounded-xl font-black text-base text-slate-700 uppercase">Cancel</button>
+                                        <button type="submit" className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-black text-base uppercase shadow-md">Save Changes</button>
+                                    </div>
+                                </div>
+                            </form>
+                        </Modal>
+                    )}
+
+                    {/* Caretaker Add/Edit Modal */}
+                    {(isAddingStaff || editingStaff) && (
+                        <Modal title={editingStaff ? `Edit ${editingStaff.name}` : "Add New Caretaker"} onClose={() => { setIsAddingStaff(false); setEditingStaff(null); }}>
+                            <form onSubmit={handleSaveStaff} className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-black uppercase text-slate-700 tracking-wide mb-1">Caretaker Full Name</label>
+                                    <input autoFocus required name="name" type="text" defaultValue={editingStaff ? editingStaff.name : ''} className="w-full bg-slate-50 border-2 border-slate-300 rounded-xl px-4 py-2.5 text-lg font-bold outline-none focus:border-indigo-500" placeholder="e.g. Maria Johnson" />
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-black uppercase text-slate-700 tracking-wide mb-1">Secret PIN (4 Digits)</label>
+                                        <input required name="pin" type="text" pattern="\d{4}" maxLength="4" defaultValue={editingStaff ? editingStaff.pin : ''} className="w-full bg-slate-50 border-2 border-slate-300 rounded-xl px-4 py-2.5 text-2xl font-black tracking-widest text-center outline-none focus:border-indigo-500" placeholder="0000" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-black uppercase text-slate-700 tracking-wide mb-1">Hourly Wage ($/hr)</label>
+                                        <div className="relative">
+                                            <span className="absolute left-3 top-2.5 text-xl font-black text-slate-400">$</span>
+                                            <input required name="hourlyRate" type="number" step="0.01" defaultValue={editingStaff ? editingStaff.hourlyRate : 45.00} className="w-full bg-emerald-50 text-emerald-800 border-2 border-emerald-300 rounded-xl pl-9 pr-3 py-2 text-xl font-black outline-none focus:border-emerald-600" />
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="pt-3 flex gap-3 border-t border-slate-100">
+                                    <button type="button" onClick={() => { setIsAddingStaff(false); setEditingStaff(null); }} className="flex-1 py-3 bg-slate-200 hover:bg-slate-300 rounded-xl font-black text-base text-slate-700 uppercase">Cancel</button>
+                                    <button type="submit" className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-base uppercase shadow-md">Save Caretaker</button>
+                                </div>
+                            </form>
+                        </Modal>
+                    )}
+
+                    {/* Reusable Confirm Dialog */}
                     <ConfirmModal 
                         open={confirmState.open}
                         title={confirmState.title}
                         message={confirmState.message}
+                        confirmText={confirmState.confirmText}
+                        isDanger={confirmState.isDanger}
                         onConfirm={confirmState.onConfirm}
                         onCancel={() => setConfirmState({ open: false })}
                     />
@@ -753,7 +1320,7 @@
                             }
                         }
                         
-                        // Check for any data stranded in previous temporary paths and migrate to permanent APP_ID
+                        // Check for data in legacy temporary paths and migrate to permanent APP_ID
                         const candidateLegacyPaths = ['ammapay1_app'];
                         if (typeof __app_id !== 'undefined' && __app_id !== APP_ID) {
                             candidateLegacyPaths.push(__app_id);
@@ -779,11 +1346,11 @@
                                     await batch.commit();
                                 }
                             } catch (e) {
-                                // Silent fallback if candidate path is non-existent
+                                // Silent skip for nonexistent paths
                             }
                         }
 
-                        // Attach realtime listeners to the permanent collections
+                        // Realtime listeners on permanent collections
                         onSnapshot(collection(db, 'artifacts', APP_ID, 'public', 'data', STAFF_COLLECTION), (snap) => {
                             setStaff(snap.docs.map(d => ({ id: d.id, ...d.data() })));
                         }, (err) => {
@@ -826,13 +1393,17 @@
             };
 
             if (!authLoaded) {
-                return <div className="flex h-screen items-center justify-center font-bold text-lg text-slate-400 uppercase tracking-widest animate-pulse">Loading Database...</div>;
+                return (
+                    <div className="flex h-screen items-center justify-center font-black text-xl text-slate-500 uppercase tracking-widest animate-pulse">
+                        Loading Database...
+                    </div>
+                );
             }
 
             return (
                 <div className="h-full w-full flex flex-col justify-center">
                     {dbError && (
-                        <div className="bg-red-600 text-white p-3 font-bold text-center text-sm shrink-0">
+                        <div className="bg-red-600 text-white p-3 font-black text-center text-base shrink-0">
                             {dbError}
                         </div>
                     )}
